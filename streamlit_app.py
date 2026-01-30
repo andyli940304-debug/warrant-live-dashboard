@@ -41,8 +41,6 @@ def get_db_connection():
 def get_live_data_connection():
     """連線到 即時權證資料庫"""
     client = get_gcp_client()
-    # 這裡直接用 open (檔名) 或 open_by_key (ID) 都可以
-    # 建議用 open_by_key 比較穩，不過你的機器人用檔名，這裡先用檔名
     return client.open(SHEET_NAME_LIVE) if client else None
 
 def upload_image_to_imgbb(image_file):
@@ -77,12 +75,11 @@ def get_data_as_df(worksheet_name):
     except:
         return pd.DataFrame()
 
-# 🔥 新增：讀取即時權證資料
 def get_live_warrant_data():
     try:
         sh = get_live_data_connection()
-        ws = sh.sheet1 # 讀取第一個工作表
-        data = ws.get_all_values() # 讀取所有內容 (包含標題)
+        ws = sh.sheet1 
+        data = ws.get_all_values() 
         if len(data) > 1:
             headers = data[0]
             rows = data[1:]
@@ -176,16 +173,18 @@ st.markdown("""
         [data-testid="stToolbar"] {visibility: hidden; display: none;}
         [data-testid="stDecoration"] {visibility: hidden; display: none;}
         footer {visibility: hidden; display: none;}
-        /* 讓表格標題置中且美化 */
+        /* 表格優化：讓字體在手機上更緊湊 */
         th {
             background-color: #f0f2f6;
             text-align: center !important;
-            font-size: 16px !important;
+            font-size: 14px !important;
+            padding: 8px !important;
         }
         td {
             text-align: center !important;
             vertical-align: middle !important;
-            font-size: 15px !important;
+            font-size: 14px !important;
+            padding: 8px !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -308,54 +307,59 @@ else:
 
     # --- VIP 內容區 ---
     if is_vip:
-        # 🔥 建立分頁：切換「即時看板」與「盤後日報」
         tab_live, tab_posts = st.tabs(["⚡ 盤中即時熱門榜", "📰 盤後主力日報"])
         
         # === 頁面 1: 即時看板 ===
         with tab_live:
             st.subheader("🔥 盤中權證熱門榜")
             
-            # 手動刷新按鈕 (右上角)
             col_r1, col_r2 = st.columns([6, 1])
             with col_r2:
                 if st.button("🔄 立即刷新"):
                     st.cache_data.clear()
                     st.rerun()
 
-            # 抓取並顯示資料
             df_live = get_live_warrant_data()
             
             if not df_live.empty:
-                # 顯示更新時間
+                # 1. 抓取並顯示最後更新時間 (放在表格上面，省空間)
                 try:
                     last_update = df_live.iloc[0]['更新時間']
                     st.caption(f"🕒 最後更新時間：{last_update}")
                 except: pass
 
-                # 美化表格顯示
+                # 2. 🔥 手機版優化核心：資料合併與重排 🔥
+                # 合併「名稱」與「代號」為一欄
+                df_live['標的'] = df_live['名稱'] + " (" + df_live['代號'] + ")"
+
+                # 篩選並重新排序欄位 (金額往前移，隱藏時間)
+                # 順序：標的 -> 漲跌 -> 成交值 -> 倍數 -> 量/流 -> 槓桿
+                display_cols = ['標的', '漲跌', '成交值', '倍數', '量/流', '槓桿']
+                df_display = df_live[display_cols]
+
+                # 3. 顯示表格 (使用 column_config 調整寬度)
                 st.dataframe(
-                    df_live, 
+                    df_display, 
                     use_container_width=True,
                     hide_index=True,
                     column_config={
-                        "漲跌": st.column_config.TextColumn(
-                            "漲跌",
-                            help="紅色代表上漲，綠色代表下跌",
-                        ),
+                        "標的": st.column_config.TextColumn("標的", width="medium"),
+                        "漲跌": st.column_config.TextColumn("漲跌", width="small"),
+                        "成交值": st.column_config.TextColumn("金額", width="small"), # 改短標題
                         "倍數": st.column_config.ProgressColumn(
                             "倍數",
                             format="%s",
                             min_value=0,
                             max_value=100,
                         ),
+                        "量/流": st.column_config.TextColumn("量/流", width="medium"),
                     }
                 )
             else:
                 st.warning("⚠️ 目前無即時資料，或機器人尚未啟動。")
 
-            # 自動刷新機制 (實驗性功能)
-            time.sleep(1) # 避免過度頻繁刷新
-            st.empty() # 佔位符
+            time.sleep(1) 
+            st.empty() 
 
         # === 頁面 2: 盤後文章 ===
         with tab_posts:
@@ -380,7 +384,6 @@ else:
             else: st.info("尚無文章")
 
     else:
-        # --- 非 VIP 畫面 ---
         st.error("⛔ 您的會員權限尚未開通或已到期。")
         st.link_button("👉 前往歐付寶付款 ($188/月)", OPAY_URL, use_container_width=True)
         st.write("#### 🔒 最新戰情預覽")
