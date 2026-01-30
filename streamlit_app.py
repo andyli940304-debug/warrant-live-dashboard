@@ -6,19 +6,19 @@ from oauth2client.service_account import ServiceAccountCredentials
 import json
 import requests
 import streamlit.components.v1 as components 
-import time # 用於自動刷新
+import time 
 
 # ==========================================
 # 1. 雲端資料庫設定 & 連線功能
 # ==========================================
 
-SHEET_NAME_DB = '會員系統資料庫'   # 存放使用者與文章
-SHEET_NAME_LIVE = 'live_data'     # 存放機器人即時數據
+SHEET_NAME_DB = '會員系統資料庫'   
+SHEET_NAME_LIVE = 'live_data'     
 OPAY_URL = "https://payment.opay.tw/Broadcaster/Donate/B3C827A2B2E3ADEDDAFCAA4B1485C4ED"
 
 # @st.cache_resource
 def get_gcp_client():
-    """取得 GCP 連線客戶端 (只連線一次)"""
+    """取得 GCP 連線客戶端"""
     scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
     if "gcp_key" in st.secrets:
         key_data = st.secrets["gcp_key"]
@@ -34,12 +34,10 @@ def get_gcp_client():
         return None
 
 def get_db_connection():
-    """連線到 會員資料庫"""
     client = get_gcp_client()
     return client.open(SHEET_NAME_DB) if client else None
 
 def get_live_data_connection():
-    """連線到 即時權證資料庫"""
     client = get_gcp_client()
     return client.open(SHEET_NAME_LIVE) if client else None
 
@@ -50,7 +48,6 @@ def upload_image_to_imgbb(image_file):
             api_key = st.secrets["imgbb_key"]
         else:
             return ""
-            
         url = "https://api.imgbb.com/1/upload"
         payload = {"key": api_key}
         files = {"image": image_file.getvalue()}
@@ -87,7 +84,7 @@ def get_live_warrant_data():
             return df
         return pd.DataFrame()
     except Exception as e:
-        st.error(f"讀取即時資料失敗: {e}")
+        # 避免在 fragment 中報錯卡住，回傳空 DF 即可
         return pd.DataFrame()
 
 def check_login(username, password):
@@ -163,6 +160,58 @@ def add_new_post(title, content, img_url=""):
         return True
     except: return False
 
+# 🔥 核心修改：使用 st.fragment 建立自動刷新的區塊
+# run_every=30 代表這個函式每 30 秒會自己重跑一次
+@st.fragment(run_every=30)
+def show_live_table():
+    st.subheader("🔥 盤中權證熱門榜")
+    
+    col_r1, col_r2 = st.columns([6, 1])
+    with col_r2:
+        if st.button("🔄 立即刷新"):
+            st.rerun()
+
+    df_live = get_live_warrant_data()
+    
+    if not df_live.empty:
+        # 1. 顯示時間
+        try:
+            last_update = df_live.iloc[0]['更新時間']
+            st.caption(f"🕒 最後更新時間：{last_update}")
+        except: pass
+
+        # 2. 手機版優化
+        df_live['標的'] = df_live['名稱'] + " (" + df_live['代號'] + ")"
+        
+        display_cols = ['標的', '漲跌', '成交值', '倍數', '量/流', '槓桿']
+        df_display = df_live[display_cols]
+
+        # CSS 讓表格不能點擊
+        st.markdown("""
+            <style>
+            [data-testid="stDataFrame"] th { font-size: 14px !important; pointer-events: none; } 
+            [data-testid="stDataFrame"] td { font-size: 14px !important; cursor: default; }
+            </style>
+        """, unsafe_allow_html=True)
+
+        # 3. 顯示表格
+        st.dataframe(
+            df_display, 
+            use_container_width=True,
+            hide_index=True,
+            height=800,  
+            column_config={
+                "標的": st.column_config.TextColumn("標的", width="medium"),
+                "漲跌": st.column_config.TextColumn("漲跌", width="small"),
+                "成交值": st.column_config.TextColumn("金額", width="small"),
+                "倍數": st.column_config.ProgressColumn("倍數", format="%s", min_value=0, max_value=100),
+                "量/流": st.column_config.TextColumn("量/流", width="medium"),
+            }
+        )
+    else:
+        st.warning("⚠️ 目前無即時資料，或機器人尚未啟動。")
+
+
 # ==========================================
 # 3. 網站介面
 # ==========================================
@@ -173,7 +222,6 @@ st.markdown("""
         [data-testid="stToolbar"] {visibility: hidden; display: none;}
         [data-testid="stDecoration"] {visibility: hidden; display: none;}
         footer {visibility: hidden; display: none;}
-        /* 表格優化：讓字體在手機上更緊湊 */
         th {
             background-color: #f0f2f6;
             text-align: center !important;
@@ -311,64 +359,8 @@ else:
         
         # === 頁面 1: 即時看板 ===
         with tab_live:
-            st.subheader("🔥 盤中權證熱門榜")
-            
-            col_r1, col_r2 = st.columns([6, 1])
-            with col_r2:
-                if st.button("🔄 立即刷新"):
-                    st.cache_data.clear()
-                    st.rerun()
-
-            df_live = get_live_warrant_data()
-            
-            if not df_live.empty:
-                # 1. 抓取並顯示最後更新時間
-                try:
-                    last_update = df_live.iloc[0]['更新時間']
-                    st.caption(f"🕒 最後更新時間：{last_update}")
-                except: pass
-
-                # 2. 資料合併與重排 (手機版優化)
-                df_live['標的'] = df_live['名稱'] + " (" + df_live['代號'] + ")"
-                
-                # 篩選顯示欄位
-                display_cols = ['標的', '漲跌', '成交值', '倍數', '量/流', '槓桿']
-                df_display = df_live[display_cols]
-
-                # 🔥 CSS 黑科技：讓表格看起來「不能點擊」(移除 header 點擊效果與選取框)
-                st.markdown("""
-                    <style>
-                    /* 隱藏表格的索引欄位 (雖然 hide_index 已設定，但雙重保險) */
-                    [data-testid="stDataFrame"] th { font-size: 14px !important; pointer-events: none; } 
-                    /* 讓表格內容只能滑動，減少點擊反白的效果 */
-                    [data-testid="stDataFrame"] td { font-size: 14px !important; cursor: default; }
-                    </style>
-                """, unsafe_allow_html=True)
-
-                # 3. 顯示表格 (高度加長 + 停用互動)
-                st.dataframe(
-                    df_display, 
-                    use_container_width=True,
-                    hide_index=True,
-                    height=800,  # 👈 高度設定為 800px，讓表格非常長
-                    column_config={
-                        "標的": st.column_config.TextColumn("標的", width="medium"),
-                        "漲跌": st.column_config.TextColumn("漲跌", width="small"),
-                        "成交值": st.column_config.TextColumn("金額", width="small"),
-                        "倍數": st.column_config.ProgressColumn(
-                            "倍數",
-                            format="%s",
-                            min_value=0,
-                            max_value=100,
-                        ),
-                        "量/流": st.column_config.TextColumn("量/流", width="medium"),
-                    }
-                )
-            else:
-                st.warning("⚠️ 目前無即時資料，或機器人尚未啟動。")
-
-            time.sleep(1) 
-            st.empty() 
+            # 呼叫自動刷新區塊
+            show_live_table()
 
         # === 頁面 2: 盤後文章 ===
         with tab_posts:
