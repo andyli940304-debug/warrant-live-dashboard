@@ -322,30 +322,39 @@ else:
             df_live = get_live_warrant_data()
             
             if not df_live.empty:
-                # 1. 抓取並顯示最後更新時間 (放在表格上面，省空間)
+                # 1. 抓取並顯示最後更新時間
                 try:
                     last_update = df_live.iloc[0]['更新時間']
                     st.caption(f"🕒 最後更新時間：{last_update}")
                 except: pass
 
-                # 2. 🔥 手機版優化核心：資料合併與重排 🔥
-                # 合併「名稱」與「代號」為一欄
+                # 2. 資料合併與重排 (手機版優化)
                 df_live['標的'] = df_live['名稱'] + " (" + df_live['代號'] + ")"
-
-                # 篩選並重新排序欄位 (金額往前移，隱藏時間)
-                # 順序：標的 -> 漲跌 -> 成交值 -> 倍數 -> 量/流 -> 槓桿
+                
+                # 篩選顯示欄位
                 display_cols = ['標的', '漲跌', '成交值', '倍數', '量/流', '槓桿']
                 df_display = df_live[display_cols]
 
-                # 3. 顯示表格 (使用 column_config 調整寬度)
+                # 🔥 CSS 黑科技：讓表格看起來「不能點擊」(移除 header 點擊效果與選取框)
+                st.markdown("""
+                    <style>
+                    /* 隱藏表格的索引欄位 (雖然 hide_index 已設定，但雙重保險) */
+                    [data-testid="stDataFrame"] th { font-size: 14px !important; pointer-events: none; } 
+                    /* 讓表格內容只能滑動，減少點擊反白的效果 */
+                    [data-testid="stDataFrame"] td { font-size: 14px !important; cursor: default; }
+                    </style>
+                """, unsafe_allow_html=True)
+
+                # 3. 顯示表格 (高度加長 + 停用互動)
                 st.dataframe(
                     df_display, 
                     use_container_width=True,
                     hide_index=True,
+                    height=800,  # 👈 高度設定為 800px，讓表格非常長
                     column_config={
                         "標的": st.column_config.TextColumn("標的", width="medium"),
                         "漲跌": st.column_config.TextColumn("漲跌", width="small"),
-                        "成交值": st.column_config.TextColumn("金額", width="small"), # 改短標題
+                        "成交值": st.column_config.TextColumn("金額", width="small"),
                         "倍數": st.column_config.ProgressColumn(
                             "倍數",
                             format="%s",
