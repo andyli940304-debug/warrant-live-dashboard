@@ -159,7 +159,7 @@ def add_new_post(title, content, img_url=""):
         return True
     except: return False
 
-# 🔥 核心修改：移除更新時間顯示 + 自動刷新
+# 🔥 核心修改：自動刷新 + 顯示最後更新時間
 @st.fragment(run_every=30)
 def show_live_table():
     st.subheader("🔥 盤中權證熱門榜")
@@ -172,12 +172,15 @@ def show_live_table():
     df_live = get_live_warrant_data()
     
     if not df_live.empty:
-        # 1. (已移除) 更新時間 caption
-        
+        # 1. 顯示最後更新時間 (資料庫裡的最新時間)
+        try:
+            last_update = df_live.iloc[0]['更新時間']
+            st.caption(f"🕒 最後更新時間：{last_update}")
+        except: pass
+
         # 2. 手機版優化
         df_live['標的'] = df_live['名稱'] + " (" + df_live['代號'] + ")"
         
-        # 篩選欄位 (這裡也不包含 '更新時間')
         display_cols = ['標的', '漲跌', '成交值', '倍數', '量/流', '槓桿']
         df_display = df_live[display_cols]
 
@@ -381,7 +384,8 @@ else:
 
     else:
         st.error("⛔ 您的會員權限尚未開通或已到期。")
-        st.link_button("👉 前往歐付寶付款 ($188/月)", OPAY_URL, use_container_width=True)
+        # 🔥 修改價格：$399/月
+        st.link_button("👉 前往歐付寶付款 ($399/月)", OPAY_URL, use_container_width=True)
         st.write("#### 🔒 最新戰情預覽")
         df_posts = get_data_as_df('posts')
         if not df_posts.empty:
