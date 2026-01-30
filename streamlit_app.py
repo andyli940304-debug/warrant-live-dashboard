@@ -230,7 +230,7 @@ if 'logged_in_user' not in st.session_state:
                         st.error(msg)
     st.write("")
     c1, c2 = st.columns(2)
-    with c1: st.success("📊 **即時權證監控**\n\n盤中 30 秒自動刷新，捕捉主力動向。")
+    with c1: st.success("📊 **即時權證監控**\n\n盤中即時監控，捕捉主力動向。")
     with c2: st.warning("🤖 **深度籌碼日報**\n\n盤後完整分析，拆解大戶手法。")
 
 # --- 已登入區 ---
@@ -282,9 +282,29 @@ else:
             
             with tab2:
                 target_user = st.text_input("輸入會員帳號")
-                if st.button("+30 天", use_container_width=True):
-                    if add_days_to_user(target_user, 30): st.success("成功 +30 天")
-                    else: st.error("失敗")
+                st.write("👇 快速加值：")
+                b1, b2, b3, b4 = st.columns(4)
+                
+                with b1:
+                    if st.button("+10 天", use_container_width=True):
+                        if add_days_to_user(target_user, 10): st.success("成功 +10 天")
+                        else: st.error("失敗")
+                with b2:
+                    if st.button("+30 天", use_container_width=True):
+                        if add_days_to_user(target_user, 30): st.success("成功 +30 天")
+                        else: st.error("失敗")
+                with b3:
+                    if st.button("+60 天", use_container_width=True):
+                        if add_days_to_user(target_user, 60): st.success("成功 +60 天")
+                        else: st.error("失敗")
+                with b4:
+                    if st.button("+90 天", use_container_width=True):
+                        if add_days_to_user(target_user, 90): st.success("成功 +90 天")
+                        else: st.error("失敗")
+
+                st.write("")
+                st.write("📋 **目前會員名單：**")
+                st.dataframe(get_data_as_df('users'), use_container_width=True)
 
     # --- VIP 內容區 ---
     if is_vip:
@@ -293,7 +313,7 @@ else:
         
         # === 頁面 1: 即時看板 ===
         with tab_live:
-            st.subheader("🔥 盤中權證熱門榜 (每 30 秒自動刷新)")
+            st.subheader("🔥 盤中權證熱門榜")
             
             # 手動刷新按鈕 (右上角)
             col_r1, col_r2 = st.columns([6, 1])
