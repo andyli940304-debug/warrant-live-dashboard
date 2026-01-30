@@ -16,7 +16,7 @@ SHEET_NAME_DB = '會員系統資料庫'   # 存放使用者與文章
 SHEET_NAME_LIVE = 'live_data'     # 存放機器人即時數據
 OPAY_URL = "https://payment.opay.tw/Broadcaster/Donate/B3C827A2B2E3ADEDDAFCAA4B1485C4ED"
 
-@st.cache_resource
+# @st.cache_resource
 def get_gcp_client():
     """取得 GCP 連線客戶端 (只連線一次)"""
     scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
