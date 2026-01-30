@@ -84,7 +84,6 @@ def get_live_warrant_data():
             return df
         return pd.DataFrame()
     except Exception as e:
-        # 避免在 fragment 中報錯卡住，回傳空 DF 即可
         return pd.DataFrame()
 
 def check_login(username, password):
@@ -160,8 +159,7 @@ def add_new_post(title, content, img_url=""):
         return True
     except: return False
 
-# 🔥 核心修改：使用 st.fragment 建立自動刷新的區塊
-# run_every=30 代表這個函式每 30 秒會自己重跑一次
+# 🔥 核心修改：移除更新時間顯示 + 自動刷新
 @st.fragment(run_every=30)
 def show_live_table():
     st.subheader("🔥 盤中權證熱門榜")
@@ -174,15 +172,12 @@ def show_live_table():
     df_live = get_live_warrant_data()
     
     if not df_live.empty:
-        # 1. 顯示時間
-        try:
-            last_update = df_live.iloc[0]['更新時間']
-            st.caption(f"🕒 最後更新時間：{last_update}")
-        except: pass
-
+        # 1. (已移除) 更新時間 caption
+        
         # 2. 手機版優化
         df_live['標的'] = df_live['名稱'] + " (" + df_live['代號'] + ")"
         
+        # 篩選欄位 (這裡也不包含 '更新時間')
         display_cols = ['標的', '漲跌', '成交值', '倍數', '量/流', '槓桿']
         df_display = df_live[display_cols]
 
