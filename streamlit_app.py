@@ -159,7 +159,7 @@ def add_new_post(title, content, img_url=""):
         return True
     except: return False
 
-# 🔥 核心修改：自動刷新 + 顯示最後更新時間
+# 🔥 核心修改：使用「當下時間」作為更新時間
 @st.fragment(run_every=30)
 def show_live_table():
     st.subheader("🔥 盤中權證熱門榜")
@@ -172,11 +172,10 @@ def show_live_table():
     df_live = get_live_warrant_data()
     
     if not df_live.empty:
-        # 1. 顯示最後更新時間 (資料庫裡的最新時間)
-        try:
-            last_update = df_live.iloc[0]['更新時間']
-            st.caption(f"🕒 最後更新時間：{last_update}")
-        except: pass
+        # 1. 🔥 顯示「當下刷新的時間」(台灣時間)
+        # 這裡不讀取 Excel 的時間，而是直接抓取現在幾點幾分
+        current_tw_time = (datetime.utcnow() + timedelta(hours=8)).strftime("%H:%M:%S")
+        st.caption(f"🕒 最後更新時間：{current_tw_time}")
 
         # 2. 手機版優化
         df_live['標的'] = df_live['名稱'] + " (" + df_live['代號'] + ")"
