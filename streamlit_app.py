@@ -14,7 +14,8 @@ import time
 
 SHEET_NAME_DB = '會員系統資料庫'   
 SHEET_NAME_LIVE = 'live_data'     
-OPAY_URL = "https://payment.opay.tw/Broadcaster/Donate/B3C827A2B2E3ADEDDAFCAA4B1485C4ED"
+# 🔥 更新：新的歐付寶付款連結
+OPAY_URL = "https://p.opay.tw/qzA4j"
 
 # @st.cache_resource
 def get_gcp_client():
