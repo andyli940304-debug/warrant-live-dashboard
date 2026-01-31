@@ -37,11 +37,6 @@ def get_db_connection():
     client = get_gcp_client()
     return client.open(SHEET_NAME_DB) if client else None
 
-# 這個舊連線函式可以留著備用，但主要的即時資料會走下面的快取函式
-def get_live_data_connection():
-    client = get_gcp_client()
-    return client.open(SHEET_NAME_LIVE) if client else None
-
 def upload_image_to_imgbb(image_file):
     if not image_file: return ""
     try:
@@ -73,27 +68,20 @@ def get_data_as_df(worksheet_name):
     except:
         return pd.DataFrame()
 
-# 🔥 重大修改：加入快取機制 (TTL = 20秒)
-# 這行指令的意思是：這份資料讀回來後，會在記憶體存活 20 秒。
-# 20 秒內如果有別人也要看資料，直接給他看舊的，不要去煩 Google。
+# 🔥 快取機制 (TTL = 20秒)：防止 API 額度爆炸
 @st.cache_data(ttl=20)
 def get_live_warrant_data():
     try:
-        # 為了確保快取運作正常，我們在函式內部建立連線，確保獨立性
         scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-        
-        # 處理 Secrets 格式
         if "gcp_key" in st.secrets:
             key_data = st.secrets["gcp_key"]
             if isinstance(key_data, str):
                 key_dict = json.loads(key_data)
             else:
-                key_dict = key_data
-                
+                key_dict = key_data 
             creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
             client = gspread.authorize(creds)
             
-            # 開啟試算表
             sh = client.open('live_data') 
             ws = sh.sheet1 
             data = ws.get_all_values() 
@@ -106,7 +94,6 @@ def get_live_warrant_data():
                 
         return pd.DataFrame()
     except Exception as e:
-        # 如果連線失敗 (例如 Google 偶爾秀逗)，回傳空表格，不要讓網站掛掉
         return pd.DataFrame()
 
 def check_login(username, password):
@@ -182,7 +169,7 @@ def add_new_post(title, content, img_url=""):
         return True
     except: return False
 
-# 🔥 核心修改：使用「當下時間」作為更新時間 + st.fragment
+# 🔥 自動刷新區塊 (每30秒)
 @st.fragment(run_every=30)
 def show_live_table():
     st.subheader("🔥 盤中權證熱門榜")
@@ -192,11 +179,10 @@ def show_live_table():
         if st.button("🔄 立即刷新"):
             st.rerun()
 
-    # 這裡會呼叫有快取保護的函式
     df_live = get_live_warrant_data()
     
     if not df_live.empty:
-        # 1. 顯示「當下刷新的時間」(台灣時間)
+        # 1. 顯示當下時間
         current_tw_time = (datetime.utcnow() + timedelta(hours=8)).strftime("%H:%M:%S")
         st.caption(f"🕒 最後更新時間：{current_tw_time}")
 
@@ -206,7 +192,6 @@ def show_live_table():
         display_cols = ['標的', '漲跌', '成交值', '倍數', '量/流', '槓桿']
         df_display = df_live[display_cols]
 
-        # CSS 讓表格不能點擊
         st.markdown("""
             <style>
             [data-testid="stDataFrame"] th { font-size: 14px !important; pointer-events: none; } 
@@ -214,7 +199,6 @@ def show_live_table():
             </style>
         """, unsafe_allow_html=True)
 
-        # 3. 顯示表格
         st.dataframe(
             df_display, 
             use_container_width=True,
@@ -377,12 +361,9 @@ else:
     if is_vip:
         tab_live, tab_posts = st.tabs(["⚡ 盤中即時熱門榜", "📰 盤後主力日報"])
         
-        # === 頁面 1: 即時看板 ===
         with tab_live:
-            # 呼叫自動刷新區塊
             show_live_table()
 
-        # === 頁面 2: 盤後文章 ===
         with tab_posts:
             st.subheader("📊 主力戰情日報")
             df_posts = get_data_as_df('posts')
@@ -406,8 +387,8 @@ else:
 
     else:
         st.error("⛔ 您的會員權限尚未開通或已到期。")
-        # 🔥 修改價格：$399/月
-        st.link_button("👉 前往歐付寶付款 ($399/月)", OPAY_URL, use_container_width=True)
+        # 🔥 修改價格：$299/月
+        st.link_button("👉 前往歐付寶付款 ($299/月)", OPAY_URL, use_container_width=True)
         st.write("#### 🔒 最新戰情預覽")
         df_posts = get_data_as_df('posts')
         if not df_posts.empty:
