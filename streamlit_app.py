@@ -14,7 +14,6 @@ import time
 
 SHEET_NAME_DB = '會員系統資料庫'   
 SHEET_NAME_LIVE = 'live_data'     
-# 🔥 更新：新的歐付寶付款連結
 OPAY_URL = "https://p.opay.tw/qzA4j"
 
 # @st.cache_resource
@@ -354,9 +353,26 @@ else:
                         if add_days_to_user(target_user, 90): st.success("成功 +90 天")
                         else: st.error("失敗")
 
+                # 🔥 新增功能：計算並顯示有效訂閱人數
+                df_users = get_data_as_df('users')
+                active_count = 0
+                if not df_users.empty:
+                    tw_today = (datetime.utcnow() + timedelta(hours=8)).date()
+                    for _, row in df_users.iterrows():
+                        try:
+                            # 讀取到期日並比對是否大於等於今天
+                            expiry_str = str(row['expiry'])
+                            expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
+                            if expiry_date >= tw_today:
+                                active_count += 1
+                        except:
+                            pass # 忽略日期格式錯誤的
+                            
                 st.write("")
+                st.write("---")
+                st.metric(label="🏆 目前有效訂閱人數", value=f"{active_count} 人")
                 st.write("📋 **目前會員名單：**")
-                st.dataframe(get_data_as_df('users'), use_container_width=True)
+                st.dataframe(df_users, use_container_width=True)
 
     # --- VIP 內容區 ---
     if is_vip:
