@@ -7,6 +7,7 @@ import json
 import requests
 import streamlit.components.v1 as components 
 import time 
+import os # 🔥 新增：為了讀取 Railway 的設定
 
 # ==========================================
 # 1. 雲端資料庫設定 & 連線功能
@@ -18,20 +19,37 @@ OPAY_URL = "https://p.opay.tw/qzA4j"
 
 # @st.cache_resource
 def get_gcp_client():
-    """取得 GCP 連線客戶端 (一般用途)"""
+    """取得 GCP 連線客戶端 (兼容 Railway 與 Streamlit Cloud)"""
     scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+    
+    # 🔥 核心修改：讓程式能自動判斷是在哪裡執行的
+    key_data = None
+    
+    # 情況 A: 在 Streamlit Community Cloud (免費版) 或 本機測試
     if "gcp_key" in st.secrets:
         key_data = st.secrets["gcp_key"]
-        if isinstance(key_data, str):
-            key_dict = json.loads(key_data)
-        else:
-            key_dict = key_data
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
-        client = gspread.authorize(creds)
-        return client
-    else:
-        st.error("找不到 GCP Key，請檢查 Secrets 設定！")
+        
+    # 情況 B: 在 Railway (付費版)
+    elif "gcp_key" in os.environ:
+        key_data = os.environ["gcp_key"]
+        
+    if not key_data:
+        st.error("❌ 找不到 GCP Key！請檢查 Secrets 或環境變數設定。")
         return None
+
+    # 處理 JSON 格式
+    if isinstance(key_data, str):
+        try:
+            key_dict = json.loads(key_data)
+        except json.JSONDecodeError:
+            st.error("❌ GCP Key 格式錯誤，無法解析 JSON")
+            return None
+    else:
+        key_dict = key_data
+        
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
+    client = gspread.authorize(creds)
+    return client
 
 def get_db_connection():
     client = get_gcp_client()
@@ -40,10 +58,10 @@ def get_db_connection():
 def upload_image_to_imgbb(image_file):
     if not image_file: return ""
     try:
-        if "imgbb_key" in st.secrets:
-            api_key = st.secrets["imgbb_key"]
-        else:
-            return ""
+        # 同樣支援兩種讀取方式
+        api_key = st.secrets.get("imgbb_key") or os.environ.get("imgbb_key")
+        if not api_key: return ""
+            
         url = "https://api.imgbb.com/1/upload"
         payload = {"key": api_key}
         files = {"image": image_file.getvalue()}
@@ -73,33 +91,44 @@ def get_data_as_df(worksheet_name):
 def get_live_warrant_data():
     try:
         scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+        
+        # 這裡也要支援兩種讀取方式
+        key_data = None
         if "gcp_key" in st.secrets:
             key_data = st.secrets["gcp_key"]
-            if isinstance(key_data, str):
-                key_dict = json.loads(key_data)
-            else:
-                key_dict = key_data 
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
-            client = gspread.authorize(creds)
+        elif "gcp_key" in os.environ:
+            key_data = os.environ["gcp_key"]
             
-            sh = client.open('live_data') 
-            ws = sh.sheet1 
-            data = ws.get_all_values() 
+        if not key_data: return pd.DataFrame()
+
+        if isinstance(key_data, str):
+            key_dict = json.loads(key_data)
+        else:
+            key_dict = key_data 
             
-            if len(data) > 1:
-                headers = data[0]
-                rows = data[1:]
-                df = pd.DataFrame(rows, columns=headers)
-                return df
-                
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
+        client = gspread.authorize(creds)
+        
+        sh = client.open('live_data') 
+        ws = sh.sheet1 
+        data = ws.get_all_values() 
+        
+        if len(data) > 1:
+            headers = data[0]
+            rows = data[1:]
+            df = pd.DataFrame(rows, columns=headers)
+            return df
+            
         return pd.DataFrame()
     except Exception as e:
         return pd.DataFrame()
 
 def check_login(username, password):
-    if "admin_username" in st.secrets:
-        admin_user = st.secrets["admin_username"]
-        admin_pwd = st.secrets["admin_password"]
+    # 支援兩種讀取方式
+    admin_user = st.secrets.get("admin_username") or os.environ.get("admin_username")
+    admin_pwd = st.secrets.get("admin_password") or os.environ.get("admin_password")
+
+    if admin_user and admin_pwd:
         if str(username) == str(admin_user) and str(password) == str(admin_pwd):
             return True
             
@@ -126,8 +155,11 @@ def register_user(username, password):
         return False, f"連線錯誤: {e}"
 
 def check_subscription(username):
-    if "admin_username" in st.secrets:
-        if str(username) == str(st.secrets["admin_username"]): 
+    # 支援兩種讀取方式
+    admin_user = st.secrets.get("admin_username") or os.environ.get("admin_username")
+
+    if admin_user:
+        if str(username) == str(admin_user): 
             return True, "永久會員 (管理員)"
     
     df = get_data_as_df('users')
@@ -309,6 +341,8 @@ else:
     is_admin = False
     if "admin_username" in st.secrets:
         if str(user) == str(st.secrets["admin_username"]): is_admin = True
+    elif "admin_username" in os.environ:
+        if str(user) == str(os.environ["admin_username"]): is_admin = True
         
     if is_admin:
         with st.expander("🔧 管理員後台 (點擊展開)", expanded=False):
