@@ -1,6 +1,6 @@
-# Mark 66 - Railway 專用修正版 (🛡️ 修復 Secrets 報錯)
-# ✅ 功能：優先讀取 Railway 環境變數，避免 st.secrets 崩潰
-# ✅ 包含：自動復活、手機版格式、認售修復
+# Mark 67 - Railway 完美運行版 (🧹 移除多餘爬蟲零件)
+# ✅ 功能：優先讀取 Railway 環境變數
+# ✅ 修正：移除 Selenium 引用，解決 ModuleNotFoundError
 
 import streamlit as st
 import pandas as pd
@@ -12,14 +12,6 @@ import requests
 import streamlit.components.v1 as components 
 import time 
 import os 
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager 
-from selenium.common.exceptions import InvalidSessionIdException, WebDriverException
 
 # ==========================================
 # 0. 安全讀取設定 (🔥 核心修復：先讀環境變數)
@@ -31,7 +23,6 @@ def get_config(key):
     2. 如果沒有，再小心地試探 Streamlit Secrets
     """
     # 1. 優先檢查環境變數 (Railway 模式)
-    # 這樣程式就不會因為找不到 secrets.toml 而崩潰
     if key in os.environ:
         return os.environ[key]
     
@@ -40,9 +31,7 @@ def get_config(key):
         if key in st.secrets:
             return st.secrets[key]
     except:
-        # 如果 st.secrets 檔案不存在，安靜地忽略，不要報錯
         pass
-        
     return None
 
 # ==========================================
@@ -147,7 +136,7 @@ def get_live_warrant_data():
         return pd.DataFrame()
 
 def check_login(username, password):
-    # 🔥 改用 get_config 安全讀取 (修復這裡的報錯)
+    # 🔥 改用 get_config 安全讀取
     admin_user = get_config("admin_username")
     admin_pwd = get_config("admin_password")
 
