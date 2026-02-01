@@ -1,6 +1,6 @@
-# Mark 67 - Railway 完美運行版 (🧹 移除多餘爬蟲零件)
+# Mark 68 - 權證戰情室Pro (🚀 正式更名版)
 # ✅ 功能：優先讀取 Railway 環境變數
-# ✅ 修正：移除 Selenium 引用，解決 ModuleNotFoundError
+# ✅ 修正：標題全面更新為「權證戰情室Pro」
 
 import streamlit as st
 import pandas as pd
@@ -263,7 +263,7 @@ def show_live_table():
 # ==========================================
 # 3. 網站介面
 # ==========================================
-st.set_page_config(page_title="權證主力戰情室", layout="wide", page_icon="📈")
+st.set_page_config(page_title="權證戰情室Pro", layout="wide", page_icon="📈")
 
 st.markdown("""
     <style>
@@ -287,7 +287,7 @@ st.markdown("""
 
 # --- 尚未登入區 ---
 if 'logged_in_user' not in st.session_state:
-    st.markdown("<h1 style='text-align: center;'>🚀 權證主力戰情室</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>🚀 權證戰情室Pro</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center;'>每日盤後籌碼分析 | 盤中即時熱門權證</p>", unsafe_allow_html=True)
     
     st.error("⚠️ **法律免責聲明**：本網站數據僅供學術研究參考，**絕不構成任何投資建議**。使用者應自行承擔所有投資風險，盈虧自負。")
@@ -336,7 +336,7 @@ else:
     # 頂部導覽列
     top_col1, top_col2 = st.columns([4, 1])
     with top_col1:
-        st.title("🚀 權證主力戰情室")
+        st.title("🚀 權證戰情室Pro")
         st.write(f"👋 歡迎回來，**{user}**")
         if is_vip: st.caption(f"✅ 會員效期至：{expiry}")
         else: st.caption(f"⛔ 會員已過期 ({expiry})")
