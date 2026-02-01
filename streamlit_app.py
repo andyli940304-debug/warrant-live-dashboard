@@ -1,3 +1,7 @@
+# Mark 66 - Railway 專用修正版 (🛡️ 修復 Secrets 報錯)
+# ✅ 功能：優先讀取 Railway 環境變數，避免 st.secrets 崩潰
+# ✅ 包含：自動復活、手機版格式、認售修復
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
@@ -7,7 +11,39 @@ import json
 import requests
 import streamlit.components.v1 as components 
 import time 
-import os # 🔥 新增：為了讀取 Railway 的設定
+import os 
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager 
+from selenium.common.exceptions import InvalidSessionIdException, WebDriverException
+
+# ==========================================
+# 0. 安全讀取設定 (🔥 核心修復：先讀環境變數)
+# ==========================================
+def get_config(key):
+    """
+    聰明讀取設定：
+    1. 先看 Railway 環境變數 (os.environ)
+    2. 如果沒有，再小心地試探 Streamlit Secrets
+    """
+    # 1. 優先檢查環境變數 (Railway 模式)
+    # 這樣程式就不會因為找不到 secrets.toml 而崩潰
+    if key in os.environ:
+        return os.environ[key]
+    
+    # 2. 嘗試讀取 st.secrets (本機/Streamlit Cloud 模式)
+    try:
+        if key in st.secrets:
+            return st.secrets[key]
+    except:
+        # 如果 st.secrets 檔案不存在，安靜地忽略，不要報錯
+        pass
+        
+    return None
 
 # ==========================================
 # 1. 雲端資料庫設定 & 連線功能
@@ -19,22 +55,14 @@ OPAY_URL = "https://p.opay.tw/qzA4j"
 
 # @st.cache_resource
 def get_gcp_client():
-    """取得 GCP 連線客戶端 (兼容 Railway 與 Streamlit Cloud)"""
+    """取得 GCP 連線客戶端"""
     scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
     
-    # 🔥 核心修改：讓程式能自動判斷是在哪裡執行的
-    key_data = None
-    
-    # 情況 A: 在 Streamlit Community Cloud (免費版) 或 本機測試
-    if "gcp_key" in st.secrets:
-        key_data = st.secrets["gcp_key"]
-        
-    # 情況 B: 在 Railway (付費版)
-    elif "gcp_key" in os.environ:
-        key_data = os.environ["gcp_key"]
+    # 🔥 改用 get_config 安全讀取
+    key_data = get_config("gcp_key")
         
     if not key_data:
-        st.error("❌ 找不到 GCP Key！請檢查 Secrets 或環境變數設定。")
+        st.error("❌ 找不到 GCP Key！請檢查 Railway 變數設定。")
         return None
 
     # 處理 JSON 格式
@@ -58,8 +86,8 @@ def get_db_connection():
 def upload_image_to_imgbb(image_file):
     if not image_file: return ""
     try:
-        # 同樣支援兩種讀取方式
-        api_key = st.secrets.get("imgbb_key") or os.environ.get("imgbb_key")
+        # 🔥 改用 get_config 安全讀取
+        api_key = get_config("imgbb_key")
         if not api_key: return ""
             
         url = "https://api.imgbb.com/1/upload"
@@ -92,13 +120,8 @@ def get_live_warrant_data():
     try:
         scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
         
-        # 這裡也要支援兩種讀取方式
-        key_data = None
-        if "gcp_key" in st.secrets:
-            key_data = st.secrets["gcp_key"]
-        elif "gcp_key" in os.environ:
-            key_data = os.environ["gcp_key"]
-            
+        # 🔥 改用 get_config 安全讀取
+        key_data = get_config("gcp_key")
         if not key_data: return pd.DataFrame()
 
         if isinstance(key_data, str):
@@ -124,9 +147,9 @@ def get_live_warrant_data():
         return pd.DataFrame()
 
 def check_login(username, password):
-    # 支援兩種讀取方式
-    admin_user = st.secrets.get("admin_username") or os.environ.get("admin_username")
-    admin_pwd = st.secrets.get("admin_password") or os.environ.get("admin_password")
+    # 🔥 改用 get_config 安全讀取 (修復這裡的報錯)
+    admin_user = get_config("admin_username")
+    admin_pwd = get_config("admin_password")
 
     if admin_user and admin_pwd:
         if str(username) == str(admin_user) and str(password) == str(admin_pwd):
@@ -155,8 +178,8 @@ def register_user(username, password):
         return False, f"連線錯誤: {e}"
 
 def check_subscription(username):
-    # 支援兩種讀取方式
-    admin_user = st.secrets.get("admin_username") or os.environ.get("admin_username")
+    # 🔥 改用 get_config 安全讀取
+    admin_user = get_config("admin_username")
 
     if admin_user:
         if str(username) == str(admin_user): 
@@ -339,10 +362,10 @@ else:
 
     # --- 管理員後台 ---
     is_admin = False
-    if "admin_username" in st.secrets:
-        if str(user) == str(st.secrets["admin_username"]): is_admin = True
-    elif "admin_username" in os.environ:
-        if str(user) == str(os.environ["admin_username"]): is_admin = True
+    # 🔥 改用 get_config 安全讀取
+    admin_user = get_config("admin_username")
+    if admin_user:
+        if str(user) == str(admin_user): is_admin = True
         
     if is_admin:
         with st.expander("🔧 管理員後台 (點擊展開)", expanded=False):
