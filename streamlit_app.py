@@ -1,6 +1,6 @@
-# Mark 71 - 權證戰情室Pro (🍪 Cookie 永續登入版)
-# ✅ 修正：使用 Cookie 記住會員，解決「自動登出」與「重整需重登」的問題
-# ✅ 維持：Mark 70 的絕對快取防禦 (Google API 保護)
+# Mark 72 - 權證戰情室Pro (⚡ 無縫接軌版)
+# ✅ 修正：解決手機螢幕關閉或切換 APP 後，Cookie 讀取過慢導致的自動登出問題
+# ✅ 新增：在載入初期加入緩衝等待，確保「老會員」能順利被認出來
 
 import streamlit as st
 import pandas as pd
@@ -12,7 +12,7 @@ import requests
 import streamlit.components.v1 as components 
 import time 
 import os 
-import extra_streamlit_components as stx  # 🔥 引入 Cookie 套件
+import extra_streamlit_components as stx 
 
 # ==========================================
 # 0. 安全讀取設定
@@ -28,7 +28,7 @@ def get_config(key):
     return None
 
 # ==========================================
-# 1. 雲端資料庫設定 (快取保護)
+# 1. 雲端資料庫設定
 # ==========================================
 SHEET_NAME_DB = '會員系統資料庫'   
 SHEET_NAME_LIVE = 'live_data'      
@@ -96,14 +96,12 @@ def get_live_warrant_data():
     except: return pd.DataFrame()
 
 def check_login(username, password):
-    # 先查管理員
     admin_user = get_config("admin_username")
     admin_pwd = get_config("admin_password")
     if admin_user and admin_pwd:
         if str(username) == str(admin_user) and str(password) == str(admin_pwd):
             return True
     
-    # 再查資料庫 (快取)
     df = get_data_as_df('users')
     if df.empty: return False
     user_row = df[df['username'].astype(str) == str(username)]
@@ -201,19 +199,33 @@ def show_live_table():
     else: st.warning("⚠️ 系統連線忙碌中，請稍候再刷新...")
 
 # ==========================================
-# 3. 網站介面 (🍪 Cookie 整合)
+# 3. 網站介面 (⚡ 無縫接軌邏輯)
 # ==========================================
 st.set_page_config(page_title="權證戰情室Pro", layout="wide", page_icon="📈")
 st.markdown("""<style>[data-testid="stToolbar"]{visibility:hidden;display:none;}[data-testid="stDecoration"]{visibility:hidden;display:none;}footer{visibility:hidden;display:none;}th{background-color:#f0f2f6;text-align:center!important;font-size:14px!important;padding:8px!important;}td{text-align:center!important;vertical-align:middle!important;font-size:14px!important;padding:8px!important;}</style>""", unsafe_allow_html=True)
 
-# 🔥 初始化 Cookie 管理器
-cookie_manager = stx.CookieManager()
+# 🔥 初始化 Cookie 管理器 (加上唯一的 Key 避免衝突)
+cookie_manager = stx.CookieManager(key="pro_cookie_manager")
 
-# 🔥 自動登入邏輯：檢查 Cookie
+# 🔥【關鍵修正】自動登入邏輯加強版
+# 1. 嘗試讀取 Cookie
 cookie_user = cookie_manager.get(cookie="logged_user")
+
+# 2. 如果 Session 空的，但是有讀到 Cookie，直接強制登入
 if cookie_user and 'logged_in_user' not in st.session_state:
     st.session_state['logged_in_user'] = cookie_user
-    # 這裡可以選擇性地再驗證一次資料庫，確保帳號沒被刪除
+    # 這裡強制刷新一次，避免畫面停留在登入頁
+    st.rerun()
+
+# 3. 如果 Cookie 還沒讀到 (None)，但我們確定這不是第一次來...
+#    這通常發生在手機剛切回來的那 0.5 秒。我們讓程式碼稍微「等一下」
+if not cookie_user and 'logged_in_user' not in st.session_state:
+    # 這裡是一個小技巧：讓程式不要馬上判定「沒登入」，而是稍微給 Cookie 一點時間載入
+    time.sleep(0.3)
+    cookie_user_retry = cookie_manager.get(cookie="logged_user")
+    if cookie_user_retry:
+        st.session_state['logged_in_user'] = cookie_user_retry
+        st.rerun()
 
 # --- 尚未登入區 ---
 if 'logged_in_user' not in st.session_state:
@@ -233,10 +245,10 @@ if 'logged_in_user' not in st.session_state:
             if st.button("登入系統", key="btn_login", use_container_width=True):
                 if check_login(user_input, pwd_input):
                     st.session_state['logged_in_user'] = user_input
-                    # 🔥 登入成功時，寫入 Cookie (效期 30 天)
+                    # 🔥 設定 Cookie 30 天，讓它黏著使用者
                     cookie_manager.set("logged_user", user_input, expires_at=datetime.now() + timedelta(days=30))
                     st.success("登入成功！")
-                    time.sleep(1) # 等待 cookie 寫入
+                    time.sleep(0.5) 
                     st.rerun()
                 else:
                     st.error("帳號或密碼錯誤，或系統忙碌中。")
@@ -272,7 +284,7 @@ else:
         st.write("")
         if st.button("登出系統", use_container_width=True):
             del st.session_state['logged_in_user']
-            # 🔥 登出時，刪除 Cookie
+            # 🔥 登出時刪除 Cookie
             cookie_manager.delete("logged_user")
             st.rerun()
             
