@@ -1,6 +1,6 @@
-# Mark 72 - 權證戰情室Pro (⚡ 無縫接軌版)
-# ✅ 修正：解決手機螢幕關閉或切換 APP 後，Cookie 讀取過慢導致的自動登出問題
-# ✅ 新增：在載入初期加入緩衝等待，確保「老會員」能順利被認出來
+# Mark 73 - 權證戰情室Pro (💎 零延遲加強版)
+# ✅ 修正：電腦版/手機版分頁凍結後，重整時顯示「驗證中」動畫，消除登入畫面閃爍感
+# ✅ 優化：Cookie 讀取判定更精準
 
 import streamlit as st
 import pandas as pd
@@ -65,7 +65,7 @@ def upload_image_to_imgbb(image_file):
     except: return ""
 
 # ==========================================
-# 2. 核心功能函數 (Cache + Cookie)
+# 2. 核心功能函數
 # ==========================================
 
 @st.cache_data(ttl=600)
@@ -199,35 +199,47 @@ def show_live_table():
     else: st.warning("⚠️ 系統連線忙碌中，請稍候再刷新...")
 
 # ==========================================
-# 3. 網站介面 (⚡ 無縫接軌邏輯)
+# 3. 網站介面 (💎 無縫接軌邏輯 + 驗證動畫)
 # ==========================================
 st.set_page_config(page_title="權證戰情室Pro", layout="wide", page_icon="📈")
 st.markdown("""<style>[data-testid="stToolbar"]{visibility:hidden;display:none;}[data-testid="stDecoration"]{visibility:hidden;display:none;}footer{visibility:hidden;display:none;}th{background-color:#f0f2f6;text-align:center!important;font-size:14px!important;padding:8px!important;}td{text-align:center!important;vertical-align:middle!important;font-size:14px!important;padding:8px!important;}</style>""", unsafe_allow_html=True)
 
-# 🔥 初始化 Cookie 管理器 (加上唯一的 Key 避免衝突)
+# 🍪 初始化 Cookie (隱藏在背景)
 cookie_manager = stx.CookieManager(key="pro_cookie_manager")
-
-# 🔥【關鍵修正】自動登入邏輯加強版
-# 1. 嘗試讀取 Cookie
 cookie_user = cookie_manager.get(cookie="logged_user")
 
-# 2. 如果 Session 空的，但是有讀到 Cookie，直接強制登入
-if cookie_user and 'logged_in_user' not in st.session_state:
-    st.session_state['logged_in_user'] = cookie_user
-    # 這裡強制刷新一次，避免畫面停留在登入頁
-    st.rerun()
-
-# 3. 如果 Cookie 還沒讀到 (None)，但我們確定這不是第一次來...
-#    這通常發生在手機剛切回來的那 0.5 秒。我們讓程式碼稍微「等一下」
-if not cookie_user and 'logged_in_user' not in st.session_state:
-    # 這裡是一個小技巧：讓程式不要馬上判定「沒登入」，而是稍微給 Cookie 一點時間載入
-    time.sleep(0.3)
-    cookie_user_retry = cookie_manager.get(cookie="logged_user")
-    if cookie_user_retry:
-        st.session_state['logged_in_user'] = cookie_user_retry
+# 🔥 核心邏輯：驗證狀態區
+# 如果 Session 沒人，但 Cookie 好像有東西，或是剛進來不確定...
+if 'logged_in_user' not in st.session_state:
+    
+    # 1. 如果 Cookie 已經讀到了，直接登入，不囉嗦
+    if cookie_user:
+        st.session_state['logged_in_user'] = cookie_user
         st.rerun()
 
-# --- 尚未登入區 ---
+    # 2. 如果 Cookie 還沒讀到 (None)，這時候最關鍵！
+    # 不要馬上顯示登入畫面，先顯示「驗證中」，避免畫面閃爍
+    else:
+        # 建立一個佔位區，顯示載入動畫
+        loading_placeholder = st.empty()
+        loading_placeholder.info("🔄 正在驗證會員身分，請稍候...")
+        
+        # 給瀏覽器一點時間吐出 Cookie
+        time.sleep(0.5)
+        
+        # 再試一次讀取
+        cookie_user_retry = cookie_manager.get(cookie="logged_user")
+        
+        if cookie_user_retry:
+            # 成功救回！
+            loading_placeholder.empty() # 清除動畫
+            st.session_state['logged_in_user'] = cookie_user_retry
+            st.rerun()
+        else:
+            # 真的沒登入，清除動畫，準備顯示登入畫面
+            loading_placeholder.empty()
+
+# --- 尚未登入區 (只有真的確定沒 Cookie 才會跑到這) ---
 if 'logged_in_user' not in st.session_state:
     st.markdown("<h1 style='text-align: center;'>🚀 權證戰情室Pro</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center;'>每日盤後籌碼分析 | 盤中即時熱門權證</p>", unsafe_allow_html=True)
@@ -245,7 +257,7 @@ if 'logged_in_user' not in st.session_state:
             if st.button("登入系統", key="btn_login", use_container_width=True):
                 if check_login(user_input, pwd_input):
                     st.session_state['logged_in_user'] = user_input
-                    # 🔥 設定 Cookie 30 天，讓它黏著使用者
+                    # 🔥 設定 Cookie 30 天
                     cookie_manager.set("logged_user", user_input, expires_at=datetime.now() + timedelta(days=30))
                     st.success("登入成功！")
                     time.sleep(0.5) 
