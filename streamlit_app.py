@@ -1,6 +1,6 @@
-# Mark 68 - 權證戰情室Pro (🚀 正式更名版)
-# ✅ 功能：優先讀取 Railway 環境變數
-# ✅ 修正：標題全面更新為「權證戰情室Pro」
+# Mark 69 - 權證戰情室Pro (🚀 高流量防護版)
+# ✅ 修正：為會員資料庫、文章資料庫加上快取 (Cache)
+# ✅ 解決：多人同時登入導致 Google API 拒絕連線的問題
 
 import streamlit as st
 import pandas as pd
@@ -14,19 +14,11 @@ import time
 import os 
 
 # ==========================================
-# 0. 安全讀取設定 (🔥 核心修復：先讀環境變數)
+# 0. 安全讀取設定
 # ==========================================
 def get_config(key):
-    """
-    聰明讀取設定：
-    1. 先看 Railway 環境變數 (os.environ)
-    2. 如果沒有，再小心地試探 Streamlit Secrets
-    """
-    # 1. 優先檢查環境變數 (Railway 模式)
     if key in os.environ:
         return os.environ[key]
-    
-    # 2. 嘗試讀取 st.secrets (本機/Streamlit Cloud 模式)
     try:
         if key in st.secrets:
             return st.secrets[key]
@@ -39,22 +31,18 @@ def get_config(key):
 # ==========================================
 
 SHEET_NAME_DB = '會員系統資料庫'   
-SHEET_NAME_LIVE = 'live_data'     
+SHEET_NAME_LIVE = 'live_data'      
 OPAY_URL = "https://p.opay.tw/qzA4j"
 
-# @st.cache_resource
 def get_gcp_client():
     """取得 GCP 連線客戶端"""
     scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-    
-    # 🔥 改用 get_config 安全讀取
     key_data = get_config("gcp_key")
         
     if not key_data:
         st.error("❌ 找不到 GCP Key！請檢查 Railway 變數設定。")
         return None
 
-    # 處理 JSON 格式
     if isinstance(key_data, str):
         try:
             key_dict = json.loads(key_data)
@@ -75,7 +63,6 @@ def get_db_connection():
 def upload_image_to_imgbb(image_file):
     if not image_file: return ""
     try:
-        # 🔥 改用 get_config 安全讀取
         api_key = get_config("imgbb_key")
         if not api_key: return ""
             
@@ -91,25 +78,30 @@ def upload_image_to_imgbb(image_file):
         return ""
 
 # ==========================================
-# 2. 核心功能函數 (已加入快取防護)
+# 2. 核心功能函數 (🔥 全面快取化)
 # ==========================================
 
+# 🔥 【關鍵修正】加上 @st.cache_data，讓會員名單與文章暫存 60 秒
+# 這樣就算 100 人同時登入，Google 也只會收到 1 次請求！
+@st.cache_data(ttl=60)
 def get_data_as_df(worksheet_name):
     try:
-        sh = get_db_connection()
+        # 這裡需要重新建立連線，因為不能快取 client 物件
+        client = get_gcp_client()
+        if not client: return pd.DataFrame()
+        
+        sh = client.open(SHEET_NAME_DB)
         ws = sh.worksheet(worksheet_name)
         data = ws.get_all_records()
         return pd.DataFrame(data)
     except:
         return pd.DataFrame()
 
-# 🔥 快取機制 (TTL = 20秒)：防止 API 額度爆炸
+# 🔥 盤中數據快取 (TTL = 20秒)
 @st.cache_data(ttl=20)
 def get_live_warrant_data():
     try:
         scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-        
-        # 🔥 改用 get_config 安全讀取
         key_data = get_config("gcp_key")
         if not key_data: return pd.DataFrame()
 
@@ -136,7 +128,6 @@ def get_live_warrant_data():
         return pd.DataFrame()
 
 def check_login(username, password):
-    # 🔥 改用 get_config 安全讀取
     admin_user = get_config("admin_username")
     admin_pwd = get_config("admin_password")
 
@@ -144,6 +135,7 @@ def check_login(username, password):
         if str(username) == str(admin_user) and str(password) == str(admin_pwd):
             return True
             
+    # 這裡現在會讀取「快取」中的資料，速度極快且不耗流量
     df = get_data_as_df('users')
     if df.empty: return False
     user_row = df[df['username'].astype(str) == str(username)]
@@ -153,6 +145,8 @@ def check_login(username, password):
     return False
 
 def register_user(username, password):
+    # 註冊需要清除快取，不然新使用者登入會找不到自己
+    # 但為了效能，我們先不強制清除，讓使用者等 60 秒或手動處理
     df = get_data_as_df('users')
     if not df.empty and str(username) in df['username'].astype(str).values:
         return False, "帳號已存在"
@@ -162,18 +156,22 @@ def register_user(username, password):
         tw_now = datetime.now() + timedelta(hours=8)
         yesterday = (tw_now - timedelta(days=1)).strftime("%Y-%m-%d")
         ws.append_row([str(username), str(password), yesterday])
+        
+        # 🔥 註冊成功後，手動清除快取，讓新資料生效
+        get_data_as_df.clear()
+        
         return True, "註冊成功！請切換到「登入」分頁進入。"
     except Exception as e:
         return False, f"連線錯誤: {e}"
 
 def check_subscription(username):
-    # 🔥 改用 get_config 安全讀取
     admin_user = get_config("admin_username")
 
     if admin_user:
         if str(username) == str(admin_user): 
             return True, "永久會員 (管理員)"
     
+    # 這裡也是讀快取，防止重新整理頁面時爆流量
     df = get_data_as_df('users')
     if df.empty: return False, "資料庫讀取失敗"
     user_row = df[df['username'].astype(str) == str(username)]
@@ -201,6 +199,9 @@ def add_days_to_user(username, days=30):
         start_date = max(current_expiry, tw_today)
         new_expiry = start_date + timedelta(days=days)
         ws.update_cell(row_num, 3, new_expiry.strftime("%Y-%m-%d"))
+        
+        # 🔥 更新後清除快取
+        get_data_as_df.clear()
         return True
     except: return False
 
@@ -210,6 +211,9 @@ def add_new_post(title, content, img_url=""):
         ws = sh.worksheet('posts')
         tw_time = datetime.now() + timedelta(hours=8)
         ws.append_row([tw_time.strftime("%Y-%m-%d %H:%M"), title, content, img_url])
+        
+        # 🔥 更新後清除快取
+        get_data_as_df.clear()
         return True
     except: return False
 
@@ -351,7 +355,6 @@ else:
 
     # --- 管理員後台 ---
     is_admin = False
-    # 🔥 改用 get_config 安全讀取
     admin_user = get_config("admin_username")
     if admin_user:
         if str(user) == str(admin_user): is_admin = True
@@ -399,20 +402,19 @@ else:
                         if add_days_to_user(target_user, 90): st.success("成功 +90 天")
                         else: st.error("失敗")
 
-                # 🔥 新增功能：計算並顯示有效訂閱人數
+                # 顯示會員列表 (也走快取)
                 df_users = get_data_as_df('users')
                 active_count = 0
                 if not df_users.empty:
                     tw_today = (datetime.utcnow() + timedelta(hours=8)).date()
                     for _, row in df_users.iterrows():
                         try:
-                            # 讀取到期日並比對是否大於等於今天
                             expiry_str = str(row['expiry'])
                             expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
                             if expiry_date >= tw_today:
                                 active_count += 1
                         except:
-                            pass # 忽略日期格式錯誤的
+                            pass
                             
                 st.write("")
                 st.write("---")
@@ -429,6 +431,7 @@ else:
 
         with tab_posts:
             st.subheader("📊 主力戰情日報")
+            # 文章列表也走快取，減少讀取次數
             df_posts = get_data_as_df('posts')
             if not df_posts.empty:
                 for index, row in df_posts.iloc[::-1].iterrows():
@@ -450,9 +453,9 @@ else:
 
     else:
         st.error("⛔ 您的會員權限尚未開通或已到期。")
-        # 🔥 修改價格：$299/月
         st.link_button("👉 前往歐付寶付款 ($299/月)", OPAY_URL, use_container_width=True)
         st.write("#### 🔒 最新戰情預覽")
+        # 預覽也走快取
         df_posts = get_data_as_df('posts')
         if not df_posts.empty:
             for index, row in df_posts.iloc[::-1].iterrows():
