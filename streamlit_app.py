@@ -1,6 +1,6 @@
-# Mark 74 - 權證戰情室Pro (🏆 完整功能回歸版)
-# ✅ 修正：補回「管理員後台」的「有效訂閱人數」統計功能
-# ✅ 維持：Mark 73 的零延遲登入體驗 & Cookie 機制
+# Mark 82 - 權證戰情室Pro (👑 全能管理版)
+# ✅ 新增：「強制刷新資料庫」按鈕 (管理員專用)，解決手改試算表不同步問題
+# ✅ 修正：優化登出邏輯，確保 cookie 被刪除後才重整，解決無法登出問題
 
 import streamlit as st
 import pandas as pd
@@ -68,6 +68,8 @@ def upload_image_to_imgbb(image_file):
 # 2. 核心功能函數
 # ==========================================
 
+# 🔥 這個快取設定是為了保護 Google API (10分鐘更新一次)
+# 管理員手動改表後，必須清除這個快取才能看到新資料
 @st.cache_data(ttl=600)
 def get_data_as_df(worksheet_name):
     try:
@@ -199,12 +201,11 @@ def show_live_table():
     else: st.warning("⚠️ 系統連線忙碌中，請稍候再刷新...")
 
 # ==========================================
-# 3. 網站介面 (💎 無縫接軌邏輯 + 驗證動畫)
+# 3. 網站介面
 # ==========================================
 st.set_page_config(page_title="權證戰情室Pro", layout="wide", page_icon="📈")
 st.markdown("""<style>[data-testid="stToolbar"]{visibility:hidden;display:none;}[data-testid="stDecoration"]{visibility:hidden;display:none;}footer{visibility:hidden;display:none;}th{background-color:#f0f2f6;text-align:center!important;font-size:14px!important;padding:8px!important;}td{text-align:center!important;vertical-align:middle!important;font-size:14px!important;padding:8px!important;}</style>""", unsafe_allow_html=True)
 
-# 🍪 初始化 Cookie (隱藏在背景)
 cookie_manager = stx.CookieManager(key="pro_cookie_manager")
 cookie_user = cookie_manager.get(cookie="logged_user")
 
@@ -280,8 +281,9 @@ else:
     with top_col2:
         st.write("")
         if st.button("登出系統", use_container_width=True):
-            del st.session_state['logged_in_user']
+            # 🔥 修正登出邏輯：先刪除 cookie，確保不會被自動登入抓回去
             cookie_manager.delete("logged_user")
+            del st.session_state['logged_in_user']
             st.rerun()
             
     st.warning("⚠️ **免責聲明**：本網站內容僅為資訊整理，**不構成投資建議**。盈虧自負。")
@@ -308,6 +310,13 @@ else:
                         if add_new_post(new_title, new_content, final_img_str): st.success("發布成功！")
             
             with tab2:
+                # 🔥 新增強制刷新按鈕
+                if st.button("⚡ 強制刷新資料庫 (手動改表後請按此)", type="primary"):
+                    get_data_as_df.clear()
+                    st.success("✅ 資料庫快取已清除，現在是最新數據！")
+                    time.sleep(1)
+                    st.rerun()
+                
                 target_user = st.text_input("輸入會員帳號")
                 b1, b2, b3, b4 = st.columns(4)
                 if b1.button("+10 天", use_container_width=True): add_days_to_user(target_user, 10)
@@ -315,7 +324,6 @@ else:
                 if b3.button("+60 天", use_container_width=True): add_days_to_user(target_user, 60)
                 if b4.button("+90 天", use_container_width=True): add_days_to_user(target_user, 90)
                 
-                # 🔥【補回功能】計算有效訂閱人數
                 df_users = get_data_as_df('users')
                 active_count = 0
                 if not df_users.empty:
