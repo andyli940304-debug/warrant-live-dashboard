@@ -1,6 +1,6 @@
-# Mark 73 - 權證戰情室Pro (💎 零延遲加強版)
-# ✅ 修正：電腦版/手機版分頁凍結後，重整時顯示「驗證中」動畫，消除登入畫面閃爍感
-# ✅ 優化：Cookie 讀取判定更精準
+# Mark 74 - 權證戰情室Pro (🏆 完整功能回歸版)
+# ✅ 修正：補回「管理員後台」的「有效訂閱人數」統計功能
+# ✅ 維持：Mark 73 的零延遲登入體驗 & Cookie 機制
 
 import streamlit as st
 import pandas as pd
@@ -209,37 +209,23 @@ cookie_manager = stx.CookieManager(key="pro_cookie_manager")
 cookie_user = cookie_manager.get(cookie="logged_user")
 
 # 🔥 核心邏輯：驗證狀態區
-# 如果 Session 沒人，但 Cookie 好像有東西，或是剛進來不確定...
 if 'logged_in_user' not in st.session_state:
-    
-    # 1. 如果 Cookie 已經讀到了，直接登入，不囉嗦
     if cookie_user:
         st.session_state['logged_in_user'] = cookie_user
         st.rerun()
-
-    # 2. 如果 Cookie 還沒讀到 (None)，這時候最關鍵！
-    # 不要馬上顯示登入畫面，先顯示「驗證中」，避免畫面閃爍
     else:
-        # 建立一個佔位區，顯示載入動畫
         loading_placeholder = st.empty()
         loading_placeholder.info("🔄 正在驗證會員身分，請稍候...")
-        
-        # 給瀏覽器一點時間吐出 Cookie
         time.sleep(0.5)
-        
-        # 再試一次讀取
         cookie_user_retry = cookie_manager.get(cookie="logged_user")
-        
         if cookie_user_retry:
-            # 成功救回！
-            loading_placeholder.empty() # 清除動畫
+            loading_placeholder.empty()
             st.session_state['logged_in_user'] = cookie_user_retry
             st.rerun()
         else:
-            # 真的沒登入，清除動畫，準備顯示登入畫面
             loading_placeholder.empty()
 
-# --- 尚未登入區 (只有真的確定沒 Cookie 才會跑到這) ---
+# --- 尚未登入區 ---
 if 'logged_in_user' not in st.session_state:
     st.markdown("<h1 style='text-align: center;'>🚀 權證戰情室Pro</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center;'>每日盤後籌碼分析 | 盤中即時熱門權證</p>", unsafe_allow_html=True)
@@ -257,7 +243,6 @@ if 'logged_in_user' not in st.session_state:
             if st.button("登入系統", key="btn_login", use_container_width=True):
                 if check_login(user_input, pwd_input):
                     st.session_state['logged_in_user'] = user_input
-                    # 🔥 設定 Cookie 30 天
                     cookie_manager.set("logged_user", user_input, expires_at=datetime.now() + timedelta(days=30))
                     st.success("登入成功！")
                     time.sleep(0.5) 
@@ -296,7 +281,6 @@ else:
         st.write("")
         if st.button("登出系統", use_container_width=True):
             del st.session_state['logged_in_user']
-            # 🔥 登出時刪除 Cookie
             cookie_manager.delete("logged_user")
             st.rerun()
             
@@ -330,7 +314,23 @@ else:
                 if b2.button("+30 天", use_container_width=True): add_days_to_user(target_user, 30)
                 if b3.button("+60 天", use_container_width=True): add_days_to_user(target_user, 60)
                 if b4.button("+90 天", use_container_width=True): add_days_to_user(target_user, 90)
+                
+                # 🔥【補回功能】計算有效訂閱人數
                 df_users = get_data_as_df('users')
+                active_count = 0
+                if not df_users.empty:
+                    tw_today = (datetime.utcnow() + timedelta(hours=8)).date()
+                    for _, row in df_users.iterrows():
+                        try:
+                            expiry_str = str(row['expiry'])
+                            expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
+                            if expiry_date >= tw_today: active_count += 1
+                        except: pass
+                
+                st.write("")
+                st.write("---")
+                st.metric(label="🏆 目前有效訂閱人數", value=f"{active_count} 人")
+                st.write("📋 **目前會員名單：**")
                 st.dataframe(df_users, use_container_width=True)
 
     if is_vip:
