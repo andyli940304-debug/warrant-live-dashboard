@@ -1,6 +1,6 @@
-# Mark 85 - 權證戰情室Pro (🔒 絕對登出版)
-# ✅ 修正：加入「手動登出鎖」，解決登出後因 Cookie 殘留被無限吸回去的問題
-# ✅ 保留：Mark 83/84 的強制刷新按鈕 & 版號顯示
+# Mark 86 - 權證戰情室Pro (✨ 清爽專業版)
+# ✅ 優化：移除標題中的 (v85) 版號，恢復專業外觀
+# ✅ 核心：保留所有 Mark 85 的強力功能 (手動登出鎖、強制刷新鈕)
 
 import streamlit as st
 import pandas as pd
@@ -201,25 +201,23 @@ def show_live_table():
 # ==========================================
 # 3. 網站介面
 # ==========================================
-st.set_page_config(page_title="權證戰情室Pro (v85)", layout="wide", page_icon="📈")
+# 🔥 這裡把 (v85) 拿掉了！
+st.set_page_config(page_title="權證戰情室Pro", layout="wide", page_icon="📈")
 st.markdown("""<style>[data-testid="stToolbar"]{visibility:hidden;display:none;}[data-testid="stDecoration"]{visibility:hidden;display:none;}footer{visibility:hidden;display:none;}th{background-color:#f0f2f6;text-align:center!important;font-size:14px!important;padding:8px!important;}td{text-align:center!important;vertical-align:middle!important;font-size:14px!important;padding:8px!important;}</style>""", unsafe_allow_html=True)
 
 cookie_manager = stx.CookieManager(key="pro_cookie_manager")
 
-# 🔥【核心修正 1】讀取餅乾前，先檢查是不是被「上鎖」了
-# 如果 session_state 裡有 'manual_logout' 這個標記，我們就直接無視餅乾！
+# 🔥 核心邏輯：驗證狀態區 (包含手動登出鎖)
 if st.session_state.get('manual_logout', False):
     cookie_user = None
 else:
     cookie_user = cookie_manager.get(cookie="logged_user")
 
-# 🔥 驗證狀態區
 if 'logged_in_user' not in st.session_state:
     if cookie_user:
         st.session_state['logged_in_user'] = cookie_user
         st.rerun()
     else:
-        # 如果沒餅乾，或者因為手動登出而無視餅乾，就顯示載入動畫後確認
         if not st.session_state.get('manual_logout', False):
             loading_placeholder = st.empty()
             loading_placeholder.info("🔄 正在驗證會員身分，請稍候...")
@@ -234,7 +232,7 @@ if 'logged_in_user' not in st.session_state:
 
 # --- 尚未登入區 ---
 if 'logged_in_user' not in st.session_state:
-    st.markdown("<h1 style='text-align: center;'>🚀 權證戰情室Pro (v85)</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>🚀 權證戰情室Pro</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center;'>每日盤後籌碼分析 | 盤中即時熱門權證</p>", unsafe_allow_html=True)
     st.error("⚠️ **法律免責聲明**：本網站數據僅供學術研究參考，**絕不構成任何投資建議**。")
     st.divider()
@@ -250,10 +248,8 @@ if 'logged_in_user' not in st.session_state:
             if st.button("登入系統", key="btn_login", use_container_width=True):
                 if check_login(user_input, pwd_input):
                     st.session_state['logged_in_user'] = user_input
-                    # 🔥【核心修正 2】手動登入成功，一定要「解鎖」 (刪除 manual_logout)
                     if 'manual_logout' in st.session_state:
                         del st.session_state['manual_logout']
-                    
                     cookie_manager.set("logged_user", user_input, expires_at=datetime.now() + timedelta(days=30))
                     st.success("登入成功！")
                     time.sleep(0.5) 
@@ -284,16 +280,16 @@ else:
     
     top_col1, top_col2 = st.columns([4, 1])
     with top_col1:
-        st.title("🚀 權證戰情室Pro (v85)")
+        # 🔥 這裡的 v85 也拿掉了！
+        st.title("🚀 權證戰情室Pro")
         st.write(f"👋 歡迎回來，**{user}**")
         if is_vip: st.caption(f"✅ 會員效期至：{expiry}")
         else: st.caption(f"⛔ 會員已過期 ({expiry})")
     with top_col2:
         st.write("")
         if st.button("登出系統", use_container_width=True):
-            # 🔥【核心修正 3】登出時，直接「上鎖」
             cookie_manager.delete("logged_user")
-            st.session_state['manual_logout'] = True  # 上鎖！禁止自動登入
+            st.session_state['manual_logout'] = True 
             del st.session_state['logged_in_user']
             st.rerun()
             
