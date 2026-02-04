@@ -1,6 +1,6 @@
-# Mark 82 - 權證戰情室Pro (👑 全能管理版)
-# ✅ 新增：「強制刷新資料庫」按鈕 (管理員專用)，解決手改試算表不同步問題
-# ✅ 修正：優化登出邏輯，確保 cookie 被刪除後才重整，解決無法登出問題
+# Mark 85 - 權證戰情室Pro (🔒 絕對登出版)
+# ✅ 修正：加入「手動登出鎖」，解決登出後因 Cookie 殘留被無限吸回去的問題
+# ✅ 保留：Mark 83/84 的強制刷新按鈕 & 版號顯示
 
 import streamlit as st
 import pandas as pd
@@ -68,8 +68,6 @@ def upload_image_to_imgbb(image_file):
 # 2. 核心功能函數
 # ==========================================
 
-# 🔥 這個快取設定是為了保護 Google API (10分鐘更新一次)
-# 管理員手動改表後，必須清除這個快取才能看到新資料
 @st.cache_data(ttl=600)
 def get_data_as_df(worksheet_name):
     try:
@@ -203,32 +201,40 @@ def show_live_table():
 # ==========================================
 # 3. 網站介面
 # ==========================================
-st.set_page_config(page_title="權證戰情室Pro", layout="wide", page_icon="📈")
+st.set_page_config(page_title="權證戰情室Pro (v85)", layout="wide", page_icon="📈")
 st.markdown("""<style>[data-testid="stToolbar"]{visibility:hidden;display:none;}[data-testid="stDecoration"]{visibility:hidden;display:none;}footer{visibility:hidden;display:none;}th{background-color:#f0f2f6;text-align:center!important;font-size:14px!important;padding:8px!important;}td{text-align:center!important;vertical-align:middle!important;font-size:14px!important;padding:8px!important;}</style>""", unsafe_allow_html=True)
 
 cookie_manager = stx.CookieManager(key="pro_cookie_manager")
-cookie_user = cookie_manager.get(cookie="logged_user")
 
-# 🔥 核心邏輯：驗證狀態區
+# 🔥【核心修正 1】讀取餅乾前，先檢查是不是被「上鎖」了
+# 如果 session_state 裡有 'manual_logout' 這個標記，我們就直接無視餅乾！
+if st.session_state.get('manual_logout', False):
+    cookie_user = None
+else:
+    cookie_user = cookie_manager.get(cookie="logged_user")
+
+# 🔥 驗證狀態區
 if 'logged_in_user' not in st.session_state:
     if cookie_user:
         st.session_state['logged_in_user'] = cookie_user
         st.rerun()
     else:
-        loading_placeholder = st.empty()
-        loading_placeholder.info("🔄 正在驗證會員身分，請稍候...")
-        time.sleep(0.5)
-        cookie_user_retry = cookie_manager.get(cookie="logged_user")
-        if cookie_user_retry:
-            loading_placeholder.empty()
-            st.session_state['logged_in_user'] = cookie_user_retry
-            st.rerun()
-        else:
-            loading_placeholder.empty()
+        # 如果沒餅乾，或者因為手動登出而無視餅乾，就顯示載入動畫後確認
+        if not st.session_state.get('manual_logout', False):
+            loading_placeholder = st.empty()
+            loading_placeholder.info("🔄 正在驗證會員身分，請稍候...")
+            time.sleep(0.5)
+            cookie_user_retry = cookie_manager.get(cookie="logged_user")
+            if cookie_user_retry:
+                loading_placeholder.empty()
+                st.session_state['logged_in_user'] = cookie_user_retry
+                st.rerun()
+            else:
+                loading_placeholder.empty()
 
 # --- 尚未登入區 ---
 if 'logged_in_user' not in st.session_state:
-    st.markdown("<h1 style='text-align: center;'>🚀 權證戰情室Pro</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center;'>🚀 權證戰情室Pro (v85)</h1>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center;'>每日盤後籌碼分析 | 盤中即時熱門權證</p>", unsafe_allow_html=True)
     st.error("⚠️ **法律免責聲明**：本網站數據僅供學術研究參考，**絕不構成任何投資建議**。")
     st.divider()
@@ -244,6 +250,10 @@ if 'logged_in_user' not in st.session_state:
             if st.button("登入系統", key="btn_login", use_container_width=True):
                 if check_login(user_input, pwd_input):
                     st.session_state['logged_in_user'] = user_input
+                    # 🔥【核心修正 2】手動登入成功，一定要「解鎖」 (刪除 manual_logout)
+                    if 'manual_logout' in st.session_state:
+                        del st.session_state['manual_logout']
+                    
                     cookie_manager.set("logged_user", user_input, expires_at=datetime.now() + timedelta(days=30))
                     st.success("登入成功！")
                     time.sleep(0.5) 
@@ -274,15 +284,16 @@ else:
     
     top_col1, top_col2 = st.columns([4, 1])
     with top_col1:
-        st.title("🚀 權證戰情室Pro")
+        st.title("🚀 權證戰情室Pro (v85)")
         st.write(f"👋 歡迎回來，**{user}**")
         if is_vip: st.caption(f"✅ 會員效期至：{expiry}")
         else: st.caption(f"⛔ 會員已過期 ({expiry})")
     with top_col2:
         st.write("")
         if st.button("登出系統", use_container_width=True):
-            # 🔥 修正登出邏輯：先刪除 cookie，確保不會被自動登入抓回去
+            # 🔥【核心修正 3】登出時，直接「上鎖」
             cookie_manager.delete("logged_user")
+            st.session_state['manual_logout'] = True  # 上鎖！禁止自動登入
             del st.session_state['logged_in_user']
             st.rerun()
             
@@ -296,6 +307,14 @@ else:
         
     if is_admin:
         with st.expander("🔧 管理員後台", expanded=False):
+            st.info("💡 如果手動修改了 Google 試算表，請按下方按鈕同步資料：")
+            if st.button("⚡ 強制刷新資料庫 (立即同步)", type="primary", use_container_width=True):
+                get_data_as_df.clear()
+                st.success("✅ 資料庫快取已清除！")
+                time.sleep(1)
+                st.rerun()
+            st.divider()
+
             tab1, tab2 = st.tabs(["發布文章", "會員管理"])
             with tab1:
                 with st.form("post_form"):
@@ -310,13 +329,6 @@ else:
                         if add_new_post(new_title, new_content, final_img_str): st.success("發布成功！")
             
             with tab2:
-                # 🔥 新增強制刷新按鈕
-                if st.button("⚡ 強制刷新資料庫 (手動改表後請按此)", type="primary"):
-                    get_data_as_df.clear()
-                    st.success("✅ 資料庫快取已清除，現在是最新數據！")
-                    time.sleep(1)
-                    st.rerun()
-                
                 target_user = st.text_input("輸入會員帳號")
                 b1, b2, b3, b4 = st.columns(4)
                 if b1.button("+10 天", use_container_width=True): add_days_to_user(target_user, 10)
