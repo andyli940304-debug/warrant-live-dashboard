@@ -1,6 +1,6 @@
-# Mark 88 - 權證戰情室Pro (💰 續費優化版)
-# ✅ 新增：在右上角加入「立即續費」按鈕，讓 VIP 會員能提前付款
-# ✅ 保留：手機強制覆寫登出、Cookie 優化、盤中即時監控
+# Mark 89 - 權證戰情室Pro (🔧 邏輯順序修正版)
+# ✅ 修正：解決 NameError 錯誤，將 is_admin 變數定義移至最頂端
+# ✅ 功能：右上角「立即續費」按鈕現在能正常運作
 
 import streamlit as st
 import pandas as pd
@@ -201,7 +201,7 @@ def show_live_table():
 # ==========================================
 # 3. 網站介面
 # ==========================================
-st.set_page_config(page_title="權證戰情室Pro (v88)", layout="wide", page_icon="📈")
+st.set_page_config(page_title="權證戰情室Pro (v89)", layout="wide", page_icon="📈")
 st.markdown("""<style>[data-testid="stToolbar"]{visibility:hidden;display:none;}[data-testid="stDecoration"]{visibility:hidden;display:none;}footer{visibility:hidden;display:none;}th{background-color:#f0f2f6;text-align:center!important;font-size:14px!important;padding:8px!important;}td{text-align:center!important;vertical-align:middle!important;font-size:14px!important;padding:8px!important;}</style>""", unsafe_allow_html=True)
 
 cookie_manager = stx.CookieManager(key="pro_cookie_manager")
@@ -278,6 +278,11 @@ else:
     user = st.session_state['logged_in_user']
     is_vip, expiry = check_subscription(user)
     
+    # 🔥【修正點】將 is_admin 的定義移到最上面，這樣下面的按鈕才能讀取到
+    is_admin = False
+    admin_user = get_config("admin_username")
+    if admin_user and str(user) == str(admin_user): is_admin = True
+    
     top_col1, top_col2 = st.columns([4, 1])
     with top_col1:
         st.title("🚀 權證戰情室Pro")
@@ -294,7 +299,7 @@ else:
             del st.session_state['logged_in_user']
             st.rerun()
         
-        # 🔥【新增】VIP 續費按鈕 (只顯示給已是 VIP 的人)
+        # 🔥 VIP 續費按鈕 (只顯示給已是 VIP 且不是管理員的人)
         if is_vip and not is_admin:
             st.link_button("💰 立即續費", OPAY_URL, use_container_width=True)
             
@@ -302,10 +307,6 @@ else:
     st.divider()
 
     # --- 管理員後台 ---
-    is_admin = False
-    admin_user = get_config("admin_username")
-    if admin_user and str(user) == str(admin_user): is_admin = True
-        
     if is_admin:
         with st.expander("🔧 管理員後台", expanded=False):
             st.info("💡 如果手動修改了 Google 試算表，請按下方按鈕同步資料：")
