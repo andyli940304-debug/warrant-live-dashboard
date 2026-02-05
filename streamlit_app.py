@@ -1,6 +1,6 @@
-# Mark 87 - 權證戰情室Pro (📱 手機強制覆寫版)
-# ✅ 修正：解決手機「滑掉重開」後會跳回舊帳號的問題
-# ✅ 核心：登出時強制「過期」舊餅乾；登入時延長寫入緩衝時間
+# Mark 88 - 權證戰情室Pro (💰 續費優化版)
+# ✅ 新增：在右上角加入「立即續費」按鈕，讓 VIP 會員能提前付款
+# ✅ 保留：手機強制覆寫登出、Cookie 優化、盤中即時監控
 
 import streamlit as st
 import pandas as pd
@@ -201,13 +201,12 @@ def show_live_table():
 # ==========================================
 # 3. 網站介面
 # ==========================================
-st.set_page_config(page_title="權證戰情室Pro (v87)", layout="wide", page_icon="📈")
+st.set_page_config(page_title="權證戰情室Pro (v88)", layout="wide", page_icon="📈")
 st.markdown("""<style>[data-testid="stToolbar"]{visibility:hidden;display:none;}[data-testid="stDecoration"]{visibility:hidden;display:none;}footer{visibility:hidden;display:none;}th{background-color:#f0f2f6;text-align:center!important;font-size:14px!important;padding:8px!important;}td{text-align:center!important;vertical-align:middle!important;font-size:14px!important;padding:8px!important;}</style>""", unsafe_allow_html=True)
 
 cookie_manager = stx.CookieManager(key="pro_cookie_manager")
 
 # 🔥 核心邏輯：驗證狀態區
-# 如果剛按了手動登出，就強制無視任何餅乾
 if st.session_state.get('manual_logout', False):
     cookie_user = None
 else:
@@ -218,7 +217,6 @@ if 'logged_in_user' not in st.session_state:
         st.session_state['logged_in_user'] = cookie_user
         st.rerun()
     else:
-        # 如果沒餅乾，或者因為手動登出而無視餅乾，就顯示載入動畫後確認
         if not st.session_state.get('manual_logout', False):
             loading_placeholder = st.empty()
             loading_placeholder.info("🔄 正在驗證會員身分，請稍候...")
@@ -249,14 +247,12 @@ if 'logged_in_user' not in st.session_state:
             if st.button("登入系統", key="btn_login", use_container_width=True):
                 if check_login(user_input, pwd_input):
                     st.session_state['logged_in_user'] = user_input
-                    # 🔥 解鎖「手動登出」標記
                     if 'manual_logout' in st.session_state:
                         del st.session_state['manual_logout']
                     
-                    # 🔥【手機版修正】寫入新餅乾後，等待 1 秒，確保手機硬碟寫入成功
                     cookie_manager.set("logged_user", user_input, expires_at=datetime.now() + timedelta(days=30))
                     st.success("登入成功！正在跳轉...")
-                    time.sleep(1.0) # 給手機一點時間
+                    time.sleep(1.0)
                     st.rerun()
                 else:
                     st.error("帳號或密碼錯誤，或系統忙碌中。")
@@ -288,16 +284,19 @@ else:
         st.write(f"👋 歡迎回來，**{user}**")
         if is_vip: st.caption(f"✅ 會員效期至：{expiry}")
         else: st.caption(f"⛔ 會員已過期 ({expiry})")
+    
     with top_col2:
         st.write("")
         if st.button("登出系統", use_container_width=True):
-            # 🔥【手機版修正】先用「過期大法」強制覆寫舊餅乾，再刪除
-            # 這能強迫手機瀏覽器承認舊餅乾已經無效
             cookie_manager.set("logged_user", "", key="logout_overwrite", expires_at=datetime.now() - timedelta(days=1))
             cookie_manager.delete("logged_user")
             st.session_state['manual_logout'] = True 
             del st.session_state['logged_in_user']
             st.rerun()
+        
+        # 🔥【新增】VIP 續費按鈕 (只顯示給已是 VIP 的人)
+        if is_vip and not is_admin:
+            st.link_button("💰 立即續費", OPAY_URL, use_container_width=True)
             
     st.warning("⚠️ **免責聲明**：本網站內容僅為資訊整理，**不構成投資建議**。盈虧自負。")
     st.divider()
