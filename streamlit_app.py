@@ -1,6 +1,6 @@
-# Mark 89 - 權證戰情室Pro (🔧 邏輯順序修正版)
-# ✅ 修正：解決 NameError 錯誤，將 is_admin 變數定義移至最頂端
-# ✅ 功能：右上角「立即續費」按鈕現在能正常運作
+# Mark 90 - 權證戰情室Pro (👀 管理員可見版)
+# ✅ 修正：移除對管理員隱藏續費按鈕的限制，讓你方便測試付款連結
+# ✅ 功能：現在所有 VIP (包含管理員) 都能看到右上角的「💰 立即續費」
 
 import streamlit as st
 import pandas as pd
@@ -201,7 +201,7 @@ def show_live_table():
 # ==========================================
 # 3. 網站介面
 # ==========================================
-st.set_page_config(page_title="權證戰情室Pro (v89)", layout="wide", page_icon="📈")
+st.set_page_config(page_title="權證戰情室Pro (v90)", layout="wide", page_icon="📈")
 st.markdown("""<style>[data-testid="stToolbar"]{visibility:hidden;display:none;}[data-testid="stDecoration"]{visibility:hidden;display:none;}footer{visibility:hidden;display:none;}th{background-color:#f0f2f6;text-align:center!important;font-size:14px!important;padding:8px!important;}td{text-align:center!important;vertical-align:middle!important;font-size:14px!important;padding:8px!important;}</style>""", unsafe_allow_html=True)
 
 cookie_manager = stx.CookieManager(key="pro_cookie_manager")
@@ -278,7 +278,7 @@ else:
     user = st.session_state['logged_in_user']
     is_vip, expiry = check_subscription(user)
     
-    # 🔥【修正點】將 is_admin 的定義移到最上面，這樣下面的按鈕才能讀取到
+    # 🔥 定義管理員身分
     is_admin = False
     admin_user = get_config("admin_username")
     if admin_user and str(user) == str(admin_user): is_admin = True
@@ -299,8 +299,8 @@ else:
             del st.session_state['logged_in_user']
             st.rerun()
         
-        # 🔥 VIP 續費按鈕 (只顯示給已是 VIP 且不是管理員的人)
-        if is_vip and not is_admin:
+        # 🔥【修正】移除「not is_admin」限制，讓管理員也能看到按鈕
+        if is_vip:
             st.link_button("💰 立即續費", OPAY_URL, use_container_width=True)
             
     st.warning("⚠️ **免責聲明**：本網站內容僅為資訊整理，**不構成投資建議**。盈虧自負。")
