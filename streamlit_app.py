@@ -1,6 +1,6 @@
-# Mark 90 - 權證戰情室Pro (👀 管理員可見版)
-# ✅ 修正：移除對管理員隱藏續費按鈕的限制，讓你方便測試付款連結
-# ✅ 功能：現在所有 VIP (包含管理員) 都能看到右上角的「💰 立即續費」
+# Mark 91 - 權證戰情室Pro (📝 用詞修正版)
+# ✅ 修改：將右上角按鈕文字由「立即續費」改為「立即續訂」
+# ✅ 核心：保留所有 VIP 與管理員權限邏輯
 
 import streamlit as st
 import pandas as pd
@@ -201,7 +201,7 @@ def show_live_table():
 # ==========================================
 # 3. 網站介面
 # ==========================================
-st.set_page_config(page_title="權證戰情室Pro (v90)", layout="wide", page_icon="📈")
+st.set_page_config(page_title="權證戰情室Pro (v91)", layout="wide", page_icon="📈")
 st.markdown("""<style>[data-testid="stToolbar"]{visibility:hidden;display:none;}[data-testid="stDecoration"]{visibility:hidden;display:none;}footer{visibility:hidden;display:none;}th{background-color:#f0f2f6;text-align:center!important;font-size:14px!important;padding:8px!important;}td{text-align:center!important;vertical-align:middle!important;font-size:14px!important;padding:8px!important;}</style>""", unsafe_allow_html=True)
 
 cookie_manager = stx.CookieManager(key="pro_cookie_manager")
@@ -299,9 +299,9 @@ else:
             del st.session_state['logged_in_user']
             st.rerun()
         
-        # 🔥【修正】移除「not is_admin」限制，讓管理員也能看到按鈕
+        # 🔥【修正】文字改為「立即續訂」
         if is_vip:
-            st.link_button("💰 立即續費", OPAY_URL, use_container_width=True)
+            st.link_button("💰 立即續訂", OPAY_URL, use_container_width=True)
             
     st.warning("⚠️ **免責聲明**：本網站內容僅為資訊整理，**不構成投資建議**。盈虧自負。")
     st.divider()
